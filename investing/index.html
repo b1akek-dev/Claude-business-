@@ -84,6 +84,7 @@ table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 th { text-align: right; font-weight: 600; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 td { text-align: right; padding: 8px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 th:first-child, td:first-child { text-align: left; }
+td.why { white-space: normal; font-family: var(--body); text-align: left; color: var(--muted); font-size: 0.8rem; min-width: 220px; max-width: 360px; }
 td .co { display: block; font-family: var(--body); font-size: 0.75rem; color: var(--muted); }
 .empty { padding: 20px 0; color: var(--muted); }
 details summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; }
@@ -164,6 +165,27 @@ footer { font-size: 0.8rem; color: var(--muted); max-width: 75ch; }
     </section>
   </div>
 
+  <section class="panel" aria-labelledby="ck-h" id="picks">
+    <div class="panel-head">
+      <div><h2 id="ck-h">Claude's picks</h2><div class="muted" style="font-size:0.85rem;margin-top:2px" id="ck-sub">Loading picks&hellip;</div></div>
+      <span id="ck-score"></span>
+    </div>
+    <div id="ck-body" hidden>
+      <p id="ck-thesis" style="margin:0 0 14px;max-width:75ch"></p>
+      <div class="summary">
+        <div><div class="label">Total value</div><div class="v" id="c-total"></div></div>
+        <div><div class="label">Gain / loss</div><div class="v" id="c-gain"></div></div>
+        <div><div class="label">S&amp;P 500, same $5,000</div><div class="v" id="c-bench"></div></div>
+        <div><div class="label">vs. S&amp;P 500</div><div class="v" id="c-edge"></div></div>
+      </div>
+      <div id="ck-chart-wrap">
+        <div class="legend"><span><i style="background:var(--accent)"></i>Claude's picks</span><span><i style="background:var(--bench)"></i>S&amp;P 500</span></div>
+        <div class="chart" id="ck-chart" style="height:180px"></div>
+      </div>
+      <div class="tbl" id="ck-holdings"></div>
+    </div>
+  </section>
+
   <footer>Prices are daily closes from Yahoo Finance, refreshed once per trading day. This is not live, intraday or investment advice. "Same trades in the S&amp;P 500" means every dollar you put in or took out moved in and out of the index on the same day instead, so the comparison is fair.</footer>
 </div>
 
@@ -192,9 +214,9 @@ const di = d => dates.indexOf(d);
 const priceAt = (sym, i) => px[sym][i];
 
 // ---------- portfolio engine ----------
-function replay(upto = dates.length - 1) {
+function replay(upto = dates.length - 1, list = txns) {
   let cash = START_CASH, bench = 0, flow = 0; const pos = {};
-  for (const t of txns) {
+  for (const t of list) {
     const i = di(t.d); if (i > upto) break;
     const amt = t.shares * t.price, spx = priceAt("^GSPC", i);
     const p = pos[t.sym] || (pos[t.sym] = { shares: 0, cost: 0 });
@@ -203,8 +225,8 @@ function replay(upto = dates.length - 1) {
   }
   return { cash, pos, bench };
 }
-function valueAt(i) {
-  const r = replay(i); let v = r.cash;
+function valueAt(i, list = txns) {
+  const r = replay(i, list); let v = r.cash;
   for (const [s, p] of Object.entries(r.pos)) v += p.shares * priceAt(s, i);
   // benchmark: the same dollars moved in and out of the index on the same days
   return { v, bv: r.cash + r.bench * priceAt("^GSPC", i) };
@@ -349,6 +371,48 @@ $("reset-zone").addEventListener("click", e => {
   else if (e.target.id === "reset-no") z.innerHTML = `<button class="btn btn-ghost" type="button" id="reset">Start over</button>`;
 });
 
+// ---------- Claude's picks (shared, read-only for viewers) ----------
+let PICKS = null;
+function renderPicks() {
+  if (!PICKS || !DATA) return;
+  const list = (PICKS.txns || []).filter(t => dates.includes(t.d) && DATA.series[t.sym]);
+  if (!list.length) return;
+  const L = dates.length - 1, s = di(list[0].d), r = replay(L, list);
+  let value = r.cash; const rows = [];
+  for (const [sym, p] of Object.entries(r.pos).sort((a, b) => b[1].cost - a[1].cost)) {
+    const last = priceAt(sym, L), mv = p.shares * last, g = mv - p.cost; value += mv;
+    rows.push(`<tr><td>${sym}<span class="co">${DATA.series[sym].name}</span></td><td>${fmt$(p.cost)}</td><td>${fmt$(mv)}</td><td class="${cls(g)}">${fmtP(g / p.cost)}</td><td class="why"></td></tr>`);
+  }
+  const bv = r.cash + r.bench * priceAt("^GSPC", L), edge = value - bv, gain = value - START_CASH;
+  $("ck-sub").textContent = `Bought ${fmtD(list[0].d)} at the close. Prices through ${fmtD(dates[L])}.`;
+  $("ck-thesis").textContent = PICKS.thesis || "";
+  $("c-total").textContent = fmt$(value);
+  $("c-gain").innerHTML = `<span class="${cls(gain)}">${fmt$(gain, true)}</span> <small class="${cls(gain)}">${fmtP(gain / START_CASH)}</small>`;
+  $("c-bench").textContent = fmt$(bv);
+  $("c-edge").innerHTML = L > s ? `<span class="pill ${cls(edge)}">${edge >= 0 ? "Beating" : "Trailing"} by ${fmt$(Math.abs(edge))}</span>` : `<span class="muted">Starts next trading day</span>`;
+  $("ck-score").innerHTML = "";
+  $("ck-holdings").innerHTML = `<table><thead><tr><th>Stock</th><th>Invested</th><th>Value</th><th>Return</th><th style="text-align:left">Why</th></tr></thead><tbody>${rows.join("")}</tbody></table>`;
+  // reasons set as text, never as HTML
+  const why = PICKS.why || {};
+  $("ck-holdings").querySelectorAll("tbody tr").forEach(tr => { tr.querySelector(".why").textContent = why[tr.firstChild.firstChild.textContent] || ""; });
+  $("ck-chart-wrap").hidden = L <= s;
+  if (L > s) {
+    const vs = [], bs = [];
+    for (let i = s; i <= L; i++) { const a = valueAt(i, list); vs.push(a.v); bs.push(a.bv); }
+    drawChart($("ck-chart"), [{ vals: vs, color: css("--accent") }, { vals: bs, color: css("--bench"), w: 1.5, dash: true }], { dates: dates.slice(s, L + 1), money: true, label: "Claude's picks versus S&P 500" });
+  }
+  $("ck-body").hidden = false;
+}
+async function loadPicks() {
+  try {
+    const db = await window.claude?.use?.("db");
+    if (!db) { $("ck-sub").textContent = "Sign in to see Claude's picks."; return; }
+    const t = setTimeout(() => { if (!PICKS) $("ck-sub").textContent = "Claude's picks didn't load. Reload to try again."; }, 10000);
+    db.doc("picks/claude").onSnapshot(snap => { clearTimeout(t); PICKS = snap.exists ? snap.data() : null; if (!PICKS) $("ck-sub").textContent = "No picks yet."; renderPicks(); },
+      () => { clearTimeout(t); $("ck-sub").textContent = "Claude's picks didn't load. Reload to try again."; });
+  } catch { $("ck-sub").textContent = "Claude's picks didn't load. Reload to try again."; }
+}
+
 // ---------- persistence: signed-in -> private db doc; otherwise this browser ----------
 const LS = "paper-portfolio-v1";
 function lsLoad() { try { return JSON.parse(localStorage.getItem(LS) || "null"); } catch { return null; } }
@@ -380,8 +444,8 @@ async function initStore() {
 fetch("data.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(d => {
   DATA = d; buildIndex();
   $("stamp").textContent = "Closes through " + fmtD(dates.at(-1));
-  fillForm(); renderSpx(); renderPortfolio(); initStore();
-  let t; addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { renderSpx(); renderPortfolio(); }, 150); });
-  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => { renderSpx(); renderPortfolio(); });
+  fillForm(); renderSpx(); renderPortfolio(); initStore(); loadPicks();
+  let t; addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { renderSpx(); renderPortfolio(); renderPicks(); }, 150); });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => { renderSpx(); renderPortfolio(); renderPicks(); });
 }).catch(() => { $("stamp").textContent = "Price data didn't load. Reload the page to try again."; });
 </script>
