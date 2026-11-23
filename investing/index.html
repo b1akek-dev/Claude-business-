@@ -1,0 +1,387 @@
+<title>Paper Portfolio</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column ledger; index tracker on top, trading desk + holdings below, two columns on wide screens */
+:root {
+  --bg: #eef1f5; --surface: #ffffff; --ink: #14202e; --muted: #5d6b7c; --line: #d6dde6;
+  --accent: #1f5fae; --accent-soft: #dbe7f6; --up: #11804b; --down: #c2362f; --bench: #8a95a3;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f151d; --surface: #17202b; --ink: #e4eaf1; --muted: #93a1b2; --line: #2a3644;
+  --accent: #6fa6ec; --accent-soft: #1d2f47; --up: #3fbf7f; --down: #f0726a; --bench: #7b8796; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f151d; --surface: #17202b; --ink: #e4eaf1; --muted: #93a1b2; --line: #2a3644;
+  --accent: #6fa6ec; --accent-soft: #1d2f47; --up: #3fbf7f; --down: #f0726a; --bench: #7b8796; color-scheme: dark }
+
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 48px; }
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 20px; }
+h1, h2 { font-family: var(--display); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+h1 { font-size: 1.9rem; font-weight: 800; }
+h2 { font-size: 1.15rem; font-weight: 700; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+.muted { color: var(--muted); }
+.up { color: var(--up); } .down { color: var(--down); }
+header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 8px 24px; }
+header p { margin: 4px 0 0; color: var(--muted); max-width: 62ch; }
+.stamp { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+
+.quote { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+.quote .big { font-family: var(--mono); font-size: 2.1rem; font-weight: 500; letter-spacing: -0.02em; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.stats > div { border-top: 1px solid var(--line); padding-top: 8px; }
+.stats .v { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1rem; }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { font: 600 0.8rem var(--body); border: 0; background: transparent; color: var(--muted); padding: 6px 11px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+
+.chart { position: relative; width: 100%; height: 260px; }
+.chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.chart .tip { position: absolute; top: 0; pointer-events: none; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 6px; padding: 4px 8px; font: 0.78rem var(--mono); white-space: nowrap; transform: translateX(-50%); }
+.axis text { fill: var(--muted); font: 11px var(--mono); }
+.grid line { stroke: var(--line); stroke-width: 1; }
+.legend { display: flex; gap: 16px; font-size: 0.8rem; color: var(--muted); flex-wrap: wrap; }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+
+.cols { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .cols { grid-template-columns: minmax(0, 1fr); } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+form { display: grid; gap: 12px; }
+.field { display: grid; gap: 4px; }
+.field label { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+select, input { font: 0.95rem var(--body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; width: 100%; box-sizing: border-box; }
+input.num { font-family: var(--mono); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.btn { font: 600 0.92rem var(--body); border-radius: 8px; padding: 9px 14px; cursor: pointer; border: 1px solid transparent; }
+.btn-buy { background: var(--accent); color: var(--surface); }
+.btn-sell { background: transparent; color: var(--ink); border-color: var(--line); }
+.btn-ghost { background: transparent; color: var(--muted); border-color: var(--line); font-size: 0.82rem; padding: 6px 10px; }
+.btn-danger { background: var(--down); color: var(--surface); font-size: 0.82rem; padding: 6px 10px; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.preview { font-size: 0.85rem; color: var(--muted); min-height: 1.3em; }
+.msg { font-size: 0.85rem; padding: 8px 10px; border-radius: 7px; background: var(--accent-soft); color: var(--ink); }
+.msg.err { background: transparent; border: 1px solid var(--down); color: var(--down); }
+
+.summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+@media (max-width: 560px) { .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.summary .v { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.15rem; }
+.pill { display: inline-block; font: 600 0.75rem var(--body); padding: 2px 8px; border-radius: 99px; border: 1px solid currentColor; }
+
+.tbl { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+th { text-align: right; font-weight: 600; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { text-align: right; padding: 8px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+td .co { display: block; font-family: var(--body); font-size: 0.75rem; color: var(--muted); }
+.empty { padding: 20px 0; color: var(--muted); }
+details summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+footer { font-size: 0.8rem; color: var(--muted); max-width: 75ch; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Paper Portfolio</h1>
+      <p>Track the S&amp;P 500 and invest an imaginary $5,000 in real stocks at real past closing prices. See whether your picks beat the index.</p>
+    </div>
+    <div class="stamp" id="stamp">Loading prices&hellip;</div>
+  </header>
+
+  <section class="panel" aria-labelledby="spx-h">
+    <div class="panel-head">
+      <div>
+        <div class="label" id="spx-h">S&amp;P 500 index &middot; ^GSPC</div>
+        <div class="quote"><span class="big" id="spx-last">—</span><span class="num" id="spx-day"></span></div>
+      </div>
+      <div class="seg" id="range" role="group" aria-label="Chart range">
+        <button type="button" data-r="1M">1M</button><button type="button" data-r="3M">3M</button><button type="button" data-r="6M">6M</button><button type="button" data-r="YTD">YTD</button><button type="button" data-r="1Y" aria-pressed="true">1Y</button>
+      </div>
+    </div>
+    <div class="chart" id="spx-chart"></div>
+    <div class="stats">
+      <div><div class="label">Range change</div><div class="v" id="st-chg">—</div></div>
+      <div><div class="label">Range high</div><div class="v" id="st-hi">—</div></div>
+      <div><div class="label">Range low</div><div class="v" id="st-lo">—</div></div>
+      <div><div class="label">Off 52-wk high</div><div class="v" id="st-dd">—</div></div>
+    </div>
+  </section>
+
+  <div class="cols">
+    <section class="panel" aria-labelledby="desk-h">
+      <div class="panel-head"><h2 id="desk-h">Trade desk</h2><span class="muted num" id="cash-pill"></span></div>
+      <form id="trade" novalidate>
+        <div class="field"><label for="f-sym">Stock</label><select id="f-sym"></select></div>
+        <div class="field"><label for="f-date">Trade date (fills at that day's close)</label><select id="f-date"></select></div>
+        <div class="row2">
+          <div class="field"><label for="f-mode">Amount in</label><select id="f-mode"><option value="usd">Dollars</option><option value="sh">Shares</option></select></div>
+          <div class="field"><label for="f-amt">Amount</label><input id="f-amt" class="num" type="number" min="0" step="any" inputmode="decimal" value="1000"></div>
+        </div>
+        <div class="preview" id="preview"></div>
+        <div class="row2">
+          <button class="btn btn-buy" type="submit" data-side="buy">Buy</button>
+          <button class="btn btn-sell" type="submit" data-side="sell">Sell</button>
+        </div>
+        <div id="msg" role="status" aria-live="polite" hidden></div>
+      </form>
+      <p class="muted" style="font-size:0.8rem;margin:14px 0 0">Fractional shares allowed, no fees. Trades must go in date order, so you can't buy something in June after you already logged an August trade.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="pf-h">
+      <div class="panel-head">
+        <h2 id="pf-h">Your portfolio</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="muted" id="save-state" style="font-size:0.78rem"></span>
+          <span id="reset-zone"><button class="btn btn-ghost" type="button" id="reset">Start over</button></span>
+        </div>
+      </div>
+      <div class="summary">
+        <div><div class="label">Total value</div><div class="v" id="s-total">$5,000.00</div></div>
+        <div><div class="label">Gain / loss</div><div class="v" id="s-gain">$0.00</div></div>
+        <div><div class="label">Cash</div><div class="v" id="s-cash">$5,000.00</div></div>
+        <div><div class="label">vs. S&amp;P 500</div><div class="v" id="s-bench">—</div></div>
+      </div>
+      <div id="pf-chart-wrap" hidden>
+        <div class="legend"><span><i style="background:var(--accent)"></i>Your portfolio</span><span><i style="background:var(--bench)"></i>Same trades in the S&amp;P 500</span></div>
+        <div class="chart" id="pf-chart" style="height:200px"></div>
+      </div>
+      <div class="tbl" id="holdings"></div>
+      <details id="log-wrap" style="margin-top:14px" hidden>
+        <summary>Trade history</summary>
+        <div class="tbl" id="log"></div>
+      </details>
+    </section>
+  </div>
+
+  <footer>Prices are daily closes from Yahoo Finance, refreshed once per trading day. This is not live, intraday or investment advice. "Same trades in the S&amp;P 500" means every dollar you put in or took out moved in and out of the index on the same day instead, so the comparison is fair.</footer>
+</div>
+
+<script>
+const START_CASH = 5000;
+const $ = id => document.getElementById(id);
+const fmt$ = (v, sign) => (sign && v > 0 ? "+" : v < 0 ? "\u2212" : "") + "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtN = v => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtP = v => (v > 0 ? "+" : v < 0 ? "\u2212" : "") + Math.abs(v * 100).toFixed(2) + "%";
+const cls = v => v > 0.00001 ? "up" : v < -0.00001 ? "down" : "";
+const fmtD = d => new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+
+let DATA = null, dates = [], px = {}, txns = [], range = "1Y";
+let store = { save: () => {} };
+
+// ---------- price lookup ----------
+function buildIndex() {
+  dates = DATA.series["^GSPC"].closes.map(r => r[0]);
+  for (const [sym, s] of Object.entries(DATA.series)) {
+    const m = new Map(s.closes); const arr = []; let last = null;
+    for (const d of dates) { if (m.has(d)) last = m.get(d); arr.push(last); }
+    px[sym] = arr; // aligned to index trading days, forward-filled
+  }
+}
+const di = d => dates.indexOf(d);
+const priceAt = (sym, i) => px[sym][i];
+
+// ---------- portfolio engine ----------
+function replay(upto = dates.length - 1) {
+  let cash = START_CASH, bench = 0, flow = 0; const pos = {};
+  for (const t of txns) {
+    const i = di(t.d); if (i > upto) break;
+    const amt = t.shares * t.price, spx = priceAt("^GSPC", i);
+    const p = pos[t.sym] || (pos[t.sym] = { shares: 0, cost: 0 });
+    if (t.side === "buy") { cash -= amt; p.shares += t.shares; p.cost += amt; bench += amt / spx; }
+    else { const avg = p.cost / p.shares; p.cost -= avg * t.shares; p.shares -= t.shares; cash += amt; bench -= amt / spx; if (p.shares < 1e-9) delete pos[t.sym]; }
+  }
+  return { cash, pos, bench };
+}
+function valueAt(i) {
+  const r = replay(i); let v = r.cash;
+  for (const [s, p] of Object.entries(r.pos)) v += p.shares * priceAt(s, i);
+  // benchmark: the same dollars moved in and out of the index on the same days
+  return { v, bv: r.cash + r.bench * priceAt("^GSPC", i) };
+}
+
+// ---------- chart ----------
+function drawChart(el, series, opts = {}) {
+  const W = el.clientWidth || 600, H = el.clientHeight || 240, padL = 56, padR = 8, padT = 10, padB = 24;
+  const all = series.flatMap(s => s.vals);
+  let lo = Math.min(...all), hi = Math.max(...all); const span = hi - lo || hi * 0.01; lo -= span * 0.06; hi += span * 0.06;
+  const n = series[0].vals.length;
+  const x = i => padL + (n <= 1 ? 0 : i / (n - 1)) * (W - padL - padR);
+  const y = v => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
+  const step = niceStep((hi - lo) / 4); const ticks = [];
+  for (let t = Math.ceil(lo / step) * step; t <= hi; t += step) ticks.push(t);
+  const xt = (W < 520 ? [0, n - 1] : [0, Math.floor((n - 1) / 2), n - 1]).filter((v, i, a) => a.indexOf(v) === i);
+  const lbl = opts.money ? (v => "$" + Math.round(v).toLocaleString("en-US")) : (v => Math.round(v).toLocaleString("en-US"));
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${opts.label || "Price chart"}">`;
+  svg += `<g class="grid">${ticks.map(t => `<line x1="${padL}" x2="${W - padR}" y1="${y(t)}" y2="${y(t)}"/>`).join("")}</g>`;
+  svg += `<g class="axis">${ticks.map(t => `<text x="${padL - 8}" y="${y(t) + 4}" text-anchor="end">${lbl(t)}</text>`).join("")}`;
+  svg += xt.map((i, k) => `<text x="${x(i)}" y="${H - 6}" text-anchor="${k === 0 ? "start" : k === xt.length - 1 ? "end" : "middle"}">${fmtD(opts.dates[i]).replace(/, \d{4}$/, m => n > 200 ? m : "")}</text>`).join("") + `</g>`;
+  series.forEach((s, k) => {
+    const path = s.vals.map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1)).join("");
+    if (k === 0 && opts.area) svg += `<path d="${path}L${x(n - 1)} ${H - padB}L${x(0)} ${H - padB}Z" fill="${s.color}" fill-opacity="0.1" stroke="none"/>`;
+    svg += `<path d="${path}" fill="none" stroke="${s.color}" stroke-width="${s.w || 2}" stroke-linejoin="round" ${s.dash ? 'stroke-dasharray="4 3"' : ""}/>`;
+    svg += `<circle cx="${x(n - 1)}" cy="${y(s.vals[n - 1])}" r="3.5" fill="${s.color}"/>`;
+  });
+  svg += `<line class="hair" x1="0" x2="0" y1="${padT}" y2="${H - padB}" stroke="var(--muted)" stroke-dasharray="2 3" visibility="hidden"/>`;
+  svg += `<rect x="${padL}" y="0" width="${W - padL - padR}" height="${H}" fill="transparent"/></svg><div class="tip" hidden></div>`;
+  el.innerHTML = svg;
+  const hair = el.querySelector(".hair"), tip = el.querySelector(".tip");
+  const move = e => {
+    const r = el.getBoundingClientRect(); const px_ = (e.clientX - r.left) * (W / r.width);
+    const i = Math.max(0, Math.min(n - 1, Math.round((px_ - padL) / (W - padL - padR) * (n - 1))));
+    hair.setAttribute("x1", x(i)); hair.setAttribute("x2", x(i)); hair.setAttribute("visibility", "visible");
+    tip.hidden = false; tip.style.left = Math.max(60, Math.min(r.width - 60, x(i) * r.width / W)) + "px";
+    tip.textContent = fmtD(opts.dates[i]) + "  " + series.map(s => (opts.money ? fmt$(s.vals[i]) : fmtN(s.vals[i]))).join(" / ");
+  };
+  el.onpointermove = move; el.onpointerdown = move;
+  el.onpointerleave = () => { hair.setAttribute("visibility", "hidden"); tip.hidden = true; };
+}
+function niceStep(raw) { const p = Math.pow(10, Math.floor(Math.log10(raw))); const f = raw / p; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p; }
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+// ---------- S&P section ----------
+function rangeStart() {
+  const last = new Date(dates.at(-1) + "T12:00:00Z");
+  if (range === "YTD") { const y = last.getUTCFullYear() + "-01-01"; const i = dates.findIndex(d => d >= y); return Math.max(0, i - 1); }
+  const months = { "1M": 1, "3M": 3, "6M": 6, "1Y": 12 }[range];
+  const t = new Date(last); t.setUTCMonth(t.getUTCMonth() - months); const iso = t.toISOString().slice(0, 10);
+  return Math.max(0, dates.findIndex(d => d >= iso));
+}
+function renderSpx() {
+  const all = px["^GSPC"], n = all.length, last = all[n - 1], prev = all[n - 2];
+  $("spx-last").textContent = fmtN(last);
+  const dc = last - prev; $("spx-day").innerHTML = `<span class="${cls(dc)}">${dc >= 0 ? "+" : "\u2212"}${fmtN(Math.abs(dc))} (${fmtP(dc / prev)})</span> <span class="muted">on ${fmtD(dates[n - 1])}</span>`;
+  const s = rangeStart(), vals = all.slice(s), ds = dates.slice(s);
+  const ch = vals.at(-1) / vals[0] - 1;
+  $("st-chg").innerHTML = `<span class="${cls(ch)}">${fmtP(ch)}</span>`;
+  $("st-hi").textContent = fmtN(Math.max(...vals)); $("st-lo").textContent = fmtN(Math.min(...vals));
+  const hi52 = Math.max(...all); $("st-dd").innerHTML = `<span class="${cls(last / hi52 - 1)}">${fmtP(last / hi52 - 1)}</span>`;
+  drawChart($("spx-chart"), [{ vals, color: ch >= 0 ? css("--up") : css("--down") }], { dates: ds, area: true, label: "S&P 500 closing level, " + range });
+  document.querySelectorAll("#range button").forEach(b => b.setAttribute("aria-pressed", b.dataset.r === range));
+}
+
+// ---------- portfolio section ----------
+function renderPortfolio() {
+  const L = dates.length - 1, r = replay(L);
+  let value = r.cash; const rows = [];
+  for (const [s, p] of Object.entries(r.pos).sort()) {
+    const last = priceAt(s, L), mv = p.shares * last, g = mv - p.cost; value += mv;
+    rows.push(`<tr><td>${s}<span class="co">${DATA.series[s].name}</span></td><td>${p.shares.toFixed(4)}</td><td>${fmt$(p.cost / p.shares)}</td><td>${fmt$(last)}</td><td>${fmt$(mv)}</td><td class="${cls(g)}">${fmt$(g, true)}<br><small>${fmtP(g / p.cost)}</small></td></tr>`);
+  }
+  const gain = value - START_CASH, bv = r.cash + r.bench * priceAt("^GSPC", L), edge = value - bv;
+  $("s-total").textContent = fmt$(value);
+  $("s-gain").innerHTML = `<span class="${cls(gain)}">${fmt$(gain, true)}</span> <small class="${cls(gain)}">${fmtP(gain / START_CASH)}</small>`;
+  $("s-cash").textContent = fmt$(r.cash);
+  $("cash-pill").textContent = fmt$(r.cash) + " cash";
+  $("s-bench").innerHTML = txns.length ? `<span class="pill ${cls(edge)}">${edge >= 0 ? "Beating" : "Trailing"} by ${fmt$(Math.abs(edge))}</span>` : `<span class="muted">No trades yet</span>`;
+  $("holdings").innerHTML = rows.length
+    ? `<table><thead><tr><th>Stock</th><th>Shares</th><th>Avg cost</th><th>Last</th><th>Value</th><th>Gain</th></tr></thead><tbody>${rows.join("")}</tbody></table>`
+    : `<div class="empty">No holdings yet. You have ${fmt$(r.cash)} in cash. Pick a stock and a date on the trade desk to make your first buy. Try buying something a year ago to see how it would have done.</div>`;
+  // chart
+  $("pf-chart-wrap").hidden = !txns.length;
+  if (txns.length) {
+    const s = di(txns[0].d), vs = [], bs = [];
+    for (let i = s; i <= L; i++) { const a = valueAt(i); vs.push(a.v); bs.push(a.bv); }
+    if (vs.length < 2) { vs.push(vs[0]); bs.push(bs[0]); }
+    drawChart($("pf-chart"), [{ vals: bs, color: css("--bench"), w: 1.5, dash: true }, { vals: vs, color: css("--accent") }].reverse(),
+      { dates: vs.length > L - s + 1 ? [dates[s], dates[s]] : dates.slice(s, L + 1), money: true, label: "Portfolio value versus S&P 500" });
+  }
+  $("log-wrap").hidden = !txns.length;
+  $("log").innerHTML = `<table><thead><tr><th>Date</th><th>Side</th><th>Stock</th><th>Shares</th><th>Price</th><th>Total</th></tr></thead><tbody>${txns.slice().reverse().map(t =>
+    `<tr><td>${fmtD(t.d)}</td><td class="${t.side === "buy" ? "" : "muted"}">${t.side.toUpperCase()}</td><td>${t.sym}</td><td>${t.shares.toFixed(4)}</td><td>${fmt$(t.price)}</td><td>${fmt$(t.shares * t.price)}</td></tr>`).join("")}</tbody></table>`;
+  updatePreview();
+}
+
+// ---------- trade desk ----------
+function fillForm() {
+  const syms = Object.keys(DATA.series).filter(s => s !== "^GSPC").sort();
+  $("f-sym").innerHTML = syms.map(s => `<option value="${s}">${s} \u00b7 ${DATA.series[s].name}</option>`).join("");
+  $("f-sym").value = syms.includes("AAPL") ? "AAPL" : syms[0];
+  $("f-date").innerHTML = dates.slice().reverse().map((d, k) => `<option value="${d}">${fmtD(d)}${k === 0 ? " (latest)" : ""}</option>`).join("");
+}
+function sharesFor(sym, i) {
+  const amt = parseFloat($("f-amt").value); if (!(amt > 0)) return 0;
+  return $("f-mode").value === "usd" ? amt / priceAt(sym, i) : amt;
+}
+function updatePreview() {
+  if (!DATA) return;
+  const sym = $("f-sym").value, i = di($("f-date").value), p = priceAt(sym, i), sh = sharesFor(sym, i);
+  $("preview").innerHTML = p ? `${sym} closed at <span class="num">${fmt$(p)}</span> on ${fmtD(dates[i])}.` + (sh ? ` That's <span class="num">${sh.toFixed(4)}</span> shares for <span class="num">${fmt$(sh * p)}</span>.` : "") : "";
+}
+function say(text, err) { const m = $("msg"); m.hidden = false; m.className = "msg" + (err ? " err" : ""); m.textContent = text; }
+$("trade").addEventListener("submit", e => {
+  e.preventDefault();
+  const side = e.submitter?.dataset.side || "buy", sym = $("f-sym").value, d = $("f-date").value, i = di(d), price = priceAt(sym, i);
+  let shares = sharesFor(sym, i);
+  if (!(shares > 0)) return say("Enter an amount above zero.", true);
+  if (txns.length && d < txns.at(-1).d) return say(`Your last trade was on ${fmtD(txns.at(-1).d)}. Pick that date or later.`, true);
+  const r = replay();
+  if (side === "buy" && shares * price > r.cash + 0.005) return say(`Not enough cash. You have ${fmt$(r.cash)}; this costs ${fmt$(shares * price)}.`, true);
+  if (side === "sell") {
+    const held = r.pos[sym]?.shares || 0;
+    if (!held) return say(`You don't own any ${sym}.`, true);
+    if (shares > held + 1e-6) return say(`You only own ${held.toFixed(4)} shares of ${sym}.`, true);
+    if (held - shares < 1e-4) shares = held;
+  }
+  if (side === "buy" && shares * price > r.cash) shares = r.cash / price;
+  txns.push({ d, sym, side, shares, price });
+  say(`${side === "buy" ? "Bought" : "Sold"} ${shares.toFixed(4)} ${sym} at ${fmt$(price)} on ${fmtD(d)}.`);
+  store.save(); renderPortfolio();
+});
+["f-sym", "f-date", "f-mode", "f-amt"].forEach(id => $(id).addEventListener("input", updatePreview));
+$("range").addEventListener("click", e => { const b = e.target.closest("button"); if (b) { range = b.dataset.r; renderSpx(); } });
+
+// reset with inline confirm
+$("reset-zone").addEventListener("click", e => {
+  const z = $("reset-zone");
+  if (e.target.id === "reset") z.innerHTML = `<span style="font-size:0.82rem">Erase all trades? </span><button class="btn btn-danger" type="button" id="reset-yes">Erase</button> <button class="btn btn-ghost" type="button" id="reset-no">Keep</button>`;
+  else if (e.target.id === "reset-yes") { txns = []; store.save(); renderPortfolio(); say("Portfolio reset to $5,000 cash."); z.innerHTML = `<button class="btn btn-ghost" type="button" id="reset">Start over</button>`; }
+  else if (e.target.id === "reset-no") z.innerHTML = `<button class="btn btn-ghost" type="button" id="reset">Start over</button>`;
+});
+
+// ---------- persistence: signed-in -> private db doc; otherwise this browser ----------
+const LS = "paper-portfolio-v1";
+function lsLoad() { try { return JSON.parse(localStorage.getItem(LS) || "null"); } catch { return null; } }
+function lsSave() { try { localStorage.setItem(LS, JSON.stringify({ txns })); } catch {} }
+function validTx(list) { return Array.isArray(list) ? list.filter(t => t && dates.includes(t.d) && DATA.series[t.sym] && t.shares > 0 && t.price > 0) : []; }
+
+async function initStore() {
+  const local = lsLoad(); if (local) txns = validTx(local.txns);
+  store.save = lsSave; $("save-state").textContent = "Saved in this browser";
+  try {
+    const [db, user] = await Promise.all([window.claude?.use?.("db"), window.claude?.use?.("user")]);
+    const id = db && user ? await user.id() : null;
+    if (!id) return;
+    const ref = db.doc(`data/users/${id}/portfolio`);
+    const snap = await ref.get();
+    const remote = snap.exists ? snap.data() : null;
+    if (remote && Array.isArray(remote.txns)) txns = validTx(remote.txns);
+    else if (txns.length) await ref.set({ txns });
+    let saving = Promise.resolve();
+    store.save = () => { lsSave(); saving = saving.then(() => ref.set({ txns })).then(
+      () => $("save-state").textContent = "Saved to your account",
+      () => $("save-state").textContent = "Couldn't save to your account; kept in this browser"); };
+    $("save-state").textContent = "Saved to your account";
+    renderPortfolio();
+  } catch { /* stay on browser storage */ }
+}
+
+// ---------- boot ----------
+fetch("data.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(d => {
+  DATA = d; buildIndex();
+  $("stamp").textContent = "Closes through " + fmtD(dates.at(-1));
+  fillForm(); renderSpx(); renderPortfolio(); initStore();
+  let t; addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { renderSpx(); renderPortfolio(); }, 150); });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => { renderSpx(); renderPortfolio(); });
+}).catch(() => { $("stamp").textContent = "Price data didn't load. Reload the page to try again."; });
+</script>
