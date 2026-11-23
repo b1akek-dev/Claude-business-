@@ -88,6 +88,14 @@ td.why { white-space: normal; font-family: var(--body); text-align: left; color:
 td .co { display: block; font-family: var(--body); font-size: 0.75rem; color: var(--muted); }
 .empty { padding: 20px 0; color: var(--muted); }
 details summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+.moves { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; margin-top: 18px; }
+@media (max-width: 760px) { .moves { grid-template-columns: minmax(0, 1fr); } }
+.moves h3 { margin: 0 0 8px; }
+.feed { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; max-height: 340px; overflow-y: auto; }
+.feed li { border-left: 3px solid var(--line); padding: 2px 0 2px 10px; font-size: 0.86rem; }
+.feed li.buy { border-left-color: var(--up); } .feed li.sell { border-left-color: var(--down); } .feed li.queued { border-left-style: dashed; border-left-color: var(--accent); }
+.feed .meta { font-family: var(--mono); font-size: 0.76rem; color: var(--muted); display: block; }
+.feed .empty { border: 0; padding: 0; }
 footer { font-size: 0.8rem; color: var(--muted); max-width: 75ch; }
 </style>
 
@@ -183,6 +191,10 @@ footer { font-size: 0.8rem; color: var(--muted); max-width: 75ch; }
         <div class="chart" id="ck-chart" style="height:180px"></div>
       </div>
       <div class="tbl" id="ck-holdings"></div>
+      <div class="moves">
+        <div><h3 class="label">Daily read</h3><ol class="feed" id="ck-journal"></ol></div>
+        <div><h3 class="label">Trades and queued orders</h3><ol class="feed" id="ck-trades"></ol></div>
+      </div>
     </div>
   </section>
 
@@ -384,7 +396,7 @@ function renderPicks() {
     rows.push(`<tr><td>${sym}<span class="co">${DATA.series[sym].name}</span></td><td>${fmt$(p.cost)}</td><td>${fmt$(mv)}</td><td class="${cls(g)}">${fmtP(g / p.cost)}</td><td class="why"></td></tr>`);
   }
   const bv = r.cash + r.bench * priceAt("^GSPC", L), edge = value - bv, gain = value - START_CASH;
-  $("ck-sub").textContent = `Bought ${fmtD(list[0].d)} at the close. Prices through ${fmtD(dates[L])}.`;
+  $("ck-sub").textContent = `Started ${fmtD(list[0].d)}. Trades daily on market news; orders fill at the next close. Prices through ${fmtD(dates[L])}.`;
   $("ck-thesis").textContent = PICKS.thesis || "";
   $("c-total").textContent = fmt$(value);
   $("c-gain").innerHTML = `<span class="${cls(gain)}">${fmt$(gain, true)}</span> <small class="${cls(gain)}">${fmtP(gain / START_CASH)}</small>`;
@@ -395,6 +407,7 @@ function renderPicks() {
   // reasons set as text, never as HTML
   const why = PICKS.why || {};
   $("ck-holdings").querySelectorAll("tbody tr").forEach(tr => { tr.querySelector(".why").textContent = why[tr.firstChild.firstChild.textContent] || ""; });
+  renderFeeds(list);
   $("ck-chart-wrap").hidden = L <= s;
   if (L > s) {
     const vs = [], bs = [];
@@ -402,6 +415,20 @@ function renderPicks() {
     drawChart($("ck-chart"), [{ vals: vs, color: css("--accent") }, { vals: bs, color: css("--bench"), w: 1.5, dash: true }], { dates: dates.slice(s, L + 1), money: true, label: "Claude's picks versus S&P 500" });
   }
   $("ck-body").hidden = false;
+}
+function feedItem(cls_, meta, text) {
+  const li = document.createElement("li"); if (cls_) li.className = cls_;
+  const m = document.createElement("span"); m.className = "meta"; m.textContent = meta;
+  li.append(m, document.createTextNode(text || "")); return li;
+}
+function renderFeeds(list) {
+  const j = $("ck-journal"), t = $("ck-trades"); j.replaceChildren(); t.replaceChildren();
+  const journal = Array.isArray(PICKS.journal) ? PICKS.journal.slice().reverse() : [];
+  journal.forEach(e => j.append(feedItem("", fmtD(e.d), e.note)));
+  if (!journal.length) j.append(feedItem("empty", "", "The first daily read posts after the next market close."));
+  const pending = Array.isArray(PICKS.pending) ? PICKS.pending : [];
+  pending.forEach(o => t.append(feedItem("queued", `QUEUED ${o.side.toUpperCase()} ${o.sym} ${o.side === "buy" ? fmt$(+o.dollars) : (o.shares === "all" ? "all shares" : o.shares + " sh")} \u00b7 fills next close`, o.why)));
+  list.slice().reverse().forEach(x => t.append(feedItem(x.side, `${fmtD(x.d)} \u00b7 ${x.side.toUpperCase()} ${x.sym} ${fmt$(x.shares * x.price)} @ ${fmt$(x.price)}`, x.why || (x.d === list[0].d ? "Opening portfolio." : ""))));
 }
 async function loadPicks() {
   try {
