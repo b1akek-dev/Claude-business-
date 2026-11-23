@@ -11,6 +11,9 @@ JSON file, runs this script against it, and writes the file back. Commands:
   python3 claude_trader.py PICKS.json order buy SYM --dollars 500 --why "..."
   python3 claude_trader.py PICKS.json order sell SYM --shares all|N --why "..."
       Queue an order for the next close. Enforces the limits in TRADING_RULES.md.
+  python3 claude_trader.py PICKS.json add SYM
+      Add any US-listed stock or ETF (Nasdaq, NYSE, NYSE American, NYSE Arca, Cboe, OTC) to the
+      universe: fetches its price history into data.json and records it in the portfolio doc.
   python3 claude_trader.py PICKS.json journal --note "..."
       Record today's market read (required every run, even when no trades are made).
 """
@@ -21,8 +24,12 @@ START_CASH = 5000.0
 MAX_ORDERS_PER_DAY = 3
 MAX_POSITION_SHARE = 0.25   # no single stock above 25% of portfolio value after a buy
 MIN_TRADE = 100.0
+MIN_PRICE = 1.0                 # no sub-$1 stocks
+MIN_DOLLAR_VOLUME = 1_000_000   # 20-day average; a closing price must be one you could really trade at
 
-DATA = json.loads(Path(__file__).with_name("data.json").read_text())["series"]
+DATA_PATH = Path(__file__).with_name("data.json")
+DATA_FILE = json.loads(DATA_PATH.read_text())
+DATA = DATA_FILE["series"]
 DATES = [d for d, _ in DATA["^GSPC"]["closes"]]
 LATEST = DATES[-1]
 
@@ -37,7 +44,7 @@ def price(sym, date):
 def load(path):
     raw = json.loads(Path(path).read_text())
     doc = raw.get("data", raw) if isinstance(raw.get("data"), dict) else raw
-    doc.setdefault("txns", []); doc.setdefault("pending", []); doc.setdefault("journal", []); doc.setdefault("why", {})
+    for k, v in (("txns", []), ("pending", []), ("journal", []), ("why", {}), ("universe", [])): doc.setdefault(k, v)
     return doc
 
 def save(path, doc):
@@ -89,7 +96,7 @@ def cmd_status(doc):
 
 def cmd_order(doc, a):
     sym = a.sym.upper()
-    if sym not in DATA or sym == "^GSPC": sys.exit(f"{sym} is not in the tradable universe")
+    if sym not in DATA or sym == "^GSPC": sys.exit(f"{sym} is not in the universe yet; run: add {sym}")
     if not a.why or len(a.why) < 20: sys.exit("--why must explain the news-based reason (20+ chars)")
     today = [o for o in doc["pending"] if o["placed"] == LATEST]
     if len(today) >= MAX_ORDERS_PER_DAY: sys.exit(f"limit: {MAX_ORDERS_PER_DAY} orders per day")
@@ -109,6 +116,21 @@ def cmd_order(doc, a):
         doc["pending"].append({"placed": LATEST, "side": "sell", "sym": sym, "shares": sh, "why": a.why})
     print(f"QUEUED {a.side} {sym} for the next close after {LATEST}")
 
+def cmd_add(doc, sym):
+    sym = sym.upper().replace(".", "-")
+    sys.path.insert(0, str(Path(__file__).parent)); import fetch_prices
+    try:
+        name, closes, info = fetch_prices.lookup(sym)
+    except ValueError as e:
+        sys.exit(str(e))
+    if closes[-1][0] != LATEST: sys.exit(f"{sym}: last close {closes[-1][0]} doesn't match the index ({LATEST}); halted or delisted?")
+    if closes[-1][1] < MIN_PRICE: sys.exit(f"{sym}: price ${closes[-1][1]} is under ${MIN_PRICE:.0f}")
+    if info["avg_dollar_volume"] < MIN_DOLLAR_VOLUME: sys.exit(f"{sym}: trades only ${info['avg_dollar_volume']:,.0f}/day; too thin to trust a closing price")
+    DATA[sym] = {"name": name, "closes": closes}
+    DATA_PATH.write_text(json.dumps(DATA_FILE, separators=(",", ":")))
+    if sym not in doc["universe"]: doc["universe"].append(sym)
+    print(f"ADDED {sym} ({name}, {info['type']} on {info['exchange']}), last close ${closes[-1][1]} on {closes[-1][0]}")
+
 def cmd_journal(doc, note):
     doc["journal"] = [j for j in doc["journal"] if j["d"] != LATEST] + [{"d": LATEST, "note": note}]
     doc["journal"] = doc["journal"][-60:]
@@ -119,7 +141,8 @@ if __name__ == "__main__":
     sp.add_parser("fill"); sp.add_parser("status")
     o = sp.add_parser("order"); o.add_argument("side", choices=["buy", "sell"]); o.add_argument("sym")
     o.add_argument("--dollars", type=float); o.add_argument("--shares", default="all"); o.add_argument("--why", required=True)
+    ad = sp.add_parser("add"); ad.add_argument("sym")
     j = sp.add_parser("journal"); j.add_argument("--note", required=True)
     a = ap.parse_args(); doc = load(a.file)
-    {"fill": lambda: cmd_fill(doc), "status": lambda: cmd_status(doc), "order": lambda: cmd_order(doc, a), "journal": lambda: cmd_journal(doc, a.note)}[a.cmd]()
+    {"fill": lambda: cmd_fill(doc), "status": lambda: cmd_status(doc), "order": lambda: cmd_order(doc, a), "journal": lambda: cmd_journal(doc, a.note), "add": lambda: cmd_add(doc, a.sym)}[a.cmd]()
     if a.cmd != "status": save(a.file, doc)
